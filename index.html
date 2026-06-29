@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>マルチモードタイマー</title>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500&family=Orbitron:wght@700&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+    }
+    html, body {
+      width: 100%; height: 100dvh;
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      overflow: hidden;
+      background: black;
+      color: white;
+      position: relative;
+    }
+    video.bg-video, img.bg-image {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      display: none;
+    }
+    #hamburger {
+      position: absolute;
+      top: 10px; right: 10px;
+      font-size: 30px;
+      z-index: 10;
+      cursor: pointer;
+      user-select: none;
+    }
+    #sideMenu {
+      position: absolute;
+      top: 0; right: -260px;
+      width: 250px; height: 100%;
+      background: rgba(255,255,255,0.9);
+      color: black;
+      padding: 20px;
+      transition: right 0.4s ease;
+      z-index: 9;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #sideMenu.open {
+      right: 0;
+    }
+    .menu-section {
+      margin-bottom: 20px;
+    }
+    .mode-btn {
+      display: block;
+      width: 100%;
+      margin: 5px 0;
+      padding: 8px 0;
+      font-weight: 600;
+      border-radius: 6px;
+      border: none;
+      background: #444;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+    }
+    .mode-btn:hover {
+      background: #666;
+    }
+    #display {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 12vw;
+      text-align: center;
+      margin-top: 20vh;
+      position: relative;
+      z-index: 1;
+      user-select: none;
+      line-height: 1;
+    }
+    #dateDisplay {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      font-size: 4vw;
+      text-align: center;
+      color: white;
+      margin-top: 5vh;
+      position: relative;
+      z-index: 1;
+      user-select: none;
+    }
+    .controls {
+      text-align: center;
+      margin-top: 20px;
+      position: fixed;
+      bottom: 60px;
+      width: 100%;
+      z-index: 1;
+      user-select: none;
+    }
+    button, input, select {
+      font-size: 16px;
+      margin: 4px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: none;
+      background: #444;
+      color: white;
+      cursor: pointer;
+      user-select: none;
+    }
+    button:hover, input:hover, select:hover {
+      background: #666;
+    }
+    #laps {
+      text-align: center;
+      font-size: 14px;
+      overflow-y: auto;
+      max-height: 20vh;
+      margin-bottom: 60px;
+      color: white;
+      width: 80vw;
+      margin-left: auto;
+      margin-right: auto;
+      position: fixed;
+      bottom: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.4);
+      border-radius: 8px;
+      padding: 5px 10px;
+      z-index: 1;
+      user-select: none;
+    }
+
+    /* 音楽プレイヤースタイル */
+    .music-player-section {
+      border-top: 1px solid #ccc;
+      padding-top: 10px;
+      color: black;
+    }
+    .music-player-section strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1.1em;
+    }
+    #musicInput, #albumInput {
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    #albumInput {
+      display: none;
+    }
+    #albumArtContainer {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+    #albumArt {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid #1db954;
+      animation: rotate 20s linear infinite;
+      animation-play-state: paused;
+      margin: 0 auto;
+      display: block;
+      background: #ddd;
+    }
+    @keyframes rotate {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .music-controls {
+      text-align: center;
+    }
+    .music-btn {
+      background: transparent;
+      border: none;
+      color: black;
+      cursor: pointer;
+      margin: 0 8px;
+      padding: 4px;
+      border-radius: 50%;
+      transition: color 0.3s ease;
+      vertical-align: middle;
+    }
+    .music-btn:hover {
+      color: #1db954; /* Spotifyグリーン */
+      background: rgba(29, 185, 84, 0.15);
+    }
+    .music-btn svg {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <video id="bgVideo" class="bg-video" autoplay muted loop></video>
+  <img id="bgImage" class="bg-image" />
+
+  <div id="hamburger">&#9776;</div>
+  <div id="sideMenu">
+    <div>
+      <div class="menu-section">
+        <strong>モード切替</strong><br />
+        <button class="mode-btn" data-mode="clock">現在時刻</button>
+        <button class="mode-btn" data-mode="timer">タイマー</button>
+        <button class="mode-btn" data-mode="pomodoro">ポモドーロ</button>
+        <button class="mode-btn" data-mode="stopwatch">ストップウォッチ</button>
+      </div>
+      <div class="menu-section">
+        <label for="colorSelect">文字色：</label>
+        <select id="colorSelect" name="colorSelect">
+          <option value="white">白</option>
+          <option value="black">黒</option>
+          <option value="gray">灰</option>
+          <option value="#ff6961">パステル赤</option>
+          <option value="#779ecb">パステル青</option>
+          <option value="#77dd77">パステル緑</option>
+          <option value="#fff68f">パステル黄</option>
+          <option value="#cdb4db">パステル紫</option>
+          <option value="#ffb6c1">ピンク</option>
+          <option value="#87cefa">水色</option>
+          <option value="#191970">紺色</option>
+          <option value="red">赤</option>
+          <option value="blue">青</option>
+          <option value="green">緑</option>
+          <option value="yellow">黄</option>
+          <option value="purple">紫</option>
+          <option value="#adff2f">黄緑</option>
+          <option value="orange">オレンジ</option>
+          <option value="#ffcc99">パステルオレンジ</option>
+          <option value="#8b0000">深紅</option>
+        </select>
+      </div>
+      <div class="menu-section">
+        <label for="bgInput">背景画像/動画：</label>
+        <input type="file" id="bgInput" accept="image/*,video/*" />
+      </div>
+    </div>
+
+    <!-- 音楽プレイヤー -->
+    <div class="music-player-section">
+      <strong>音楽プレイヤー</strong>
+      <input type="file" id="musicInput" accept="audio/*" multiple />
+      <label for="albumInput" style="font-size:0.9em;display:block;margin-top:6px; cursor:pointer; color:#1db954;">ジャケット画像アップロード</label>
+      <input type="file" id="albumInput" accept="image/*" />
+      <div id="albumArtContainer">
+        <img id="albumArt" src="" alt="ジャケット" />
+      </div>
+      <div class="music-controls">
+        <button id="prevBtn" class="music-btn" aria-label="前の曲" title="前の曲">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <polygon points="16,4 7,12 16,20"></polygon>
+          </svg>
+        </button>
+        <button id="playPauseBtn" class="music-btn" aria-label="再生/一時停止" title="再生/一時停止">
+          <svg id="playIcon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <polygon points="6,4 20,12 6,20"></polygon>
+          </svg>
+          <svg id="pauseIcon" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" style="display:none;">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+        <button id="nextBtn" class="music-btn" aria-label="次の曲" title="次の曲">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <polygon points="8,4 17,12 8,20"></polygon>
+          </svg>
+        </button>
+      </div>
+      <div class="music-controls" style="margin-top: 5px;">
+        <button id="loopBtn" class="music-btn" aria-label="ループ" title="ループ" style="color: gray;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M7 7h10v3l4-4-4-4v3H6a4 4 0 0 0-4 4v4h2v-4a2 2 0 0 1 2-2z"></path>
+            <path d="M17 17H7v-3l-4 4 4 4v-3h11a4 4 0 0 0 4-4v-4h-2v4a2 2 0 0 1-2 2z"></path>
+          </svg>
+        </button>
+        <button id="shuffleBtn" class="music-btn" aria-label="シャッフル" title="シャッフル" style="color: gray;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M16 3h2v2l3-3-3-3v2h-2l-4 4-4-4H6v2l3 3-3 3v2h2l4-4 4 4z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dateDisplay" style="display:none;"></div>
+  <div id="display">00:00:00</div>
+  <div class="controls" id="controlArea"></div>
+  <div id="laps"></div>
+
+  <script>
+    // 既存タイマーコードはそのまま
+    const display = document.getElementById("display");
+    const dateDisplay = document.getElementById("dateDisplay");
+    const controlArea = document.getElementById("controlArea");
+    const lapsDiv = document.getElementById("laps");
+    const bgInput = document.getElementById("bgInput");
+    const bgImage = document.getElementById("bgImage");
+    const bgVideo = document.getElementById("bgVideo");
+    const colorSelect = document.getElementById("colorSelect");
+    const hamburger = document.getElementById("hamburger");
+    const sideMenu = document.getElementById("sideMenu");
+
+    let interval, timerTime = 0, isPaused = false;
+    let stopwatchTime = 0, pomoPhase = "work", pomoCount = 0;
+
+    hamburger.onclick = () => sideMenu.classList.toggle("open");
+    colorSelect.onchange = () => {
+      display.style.color = colorSelect.value;
+      dateDisplay.style.color = colorSelect.value;
+      lapsDiv.style.color = colorSelect.value;
+    };
+
+    bgInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      if (file.type.startsWith("video/")) {
+        bgVideo.src = url;
+        bgVideo.style.display = "block";
+        bgImage.style.display = "none";
+      } else if (file.type.startsWith("image/")) {
+        bgImage.src = url;
+        bgImage.style.display = "block";
+        bgVideo.style.display = "none";
+      }
+    });
+
+    function clearAll() {
+      clearInterval(interval);
+      controlArea.innerHTML = "";
+      lapsDiv.innerHTML = "";
+      lapsDiv.style.display = "none";
+      dateDisplay.style.display = "none";
+    }
+
+    function formatHMS(t) {
+      const h = String(Math.floor(t / 3600)).padStart(2, '0');
+      const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
+      const s = String(t % 60).padStart(2, '0');
+      return `${h}:${m}:${s}`;
+    }
+
+    function formatStopwatch(t) {
+      const minutes = Math.floor(t / 6000);
+      const seconds = Math.floor((t % 6000) / 100);
+      const centiseconds = t % 100;
+      return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.<span style="font-size:0.7em;">${String(centiseconds).padStart(2,'0')}</span>`;
+    }
+
+    function showClock() {
+      clearAll();
+      dateDisplay.style.display = "block";
+      function update() {
+        const now = new Date();
+        dateDisplay.textContent = now.toLocaleDateString();
+        display.textContent = now.toLocaleTimeString();
+      }
+      update();
+      interval = setInterval(update, 1000);
+    }
+
+    function showTimer() {
+      clearAll();
+      display.textContent = "00:00:00";
+      controlArea.innerHTML = `
+        <input id="hoursInput" type="number" value="0" min="0" max="23" style="width:60px;"> 時
+        <input id="minutesInput" type="number" value="25" min="0" max="59" style="width:60px;"> 分
+        <button id="start">開始</button>
+        <button id="pause">一時停止</button>
+        <button id="reset">リセット</button>
+      `;
+
+      const updateTime = () => {
+        const h = +document.getElementById("hoursInput").value || 0;
+        const m = +document.getElementById("minutesInput").value || 0;
+        timerTime = h * 3600 + m * 60;
+        display.textContent = formatHMS(timerTime);
+      };
+
+      updateTime();
+      document.getElementById("hoursInput").onchange = updateTime;
+      document.getElementById("minutesInput").onchange = updateTime;
+
+      let running = false;
+      document.getElementById("start").onclick = () => {
+        if (running) return;
+        running = true;
+        isPaused = false;
+        updateTime();
+        clearInterval(interval);
+        interval = setInterval(() => {
+          if (!isPaused && timerTime > 0) {
+            timerTime--;
+            display.textContent = formatHMS(timerTime);
+            if (timerTime === 0) running = false;
+          }
+        }, 1000);
+      };
+      document.getElementById("pause").onclick = () => {
+        if (!running) return;
+        isPaused = !isPaused;
+      };
+      document.getElementById("reset").onclick = () => {
+        running = false;
+        clearInterval(interval);
+        updateTime();
+      };
+    }
+
+    function showPomodoro() {
+      clearAll();
+      display.textContent = "";
+      controlArea.innerHTML = `
+        作業時間(分): <input id="work" type="number" value="25" min="1" max="120" style="width:50px;">
+        休憩時間(分): <input id="rest" type="number" value="5" min="1" max="60" style="width:50px;">
+        大休憩(分): <input id="long" type="number" value="15" min="1" max="60" style="width:50px;">
+        サイクル数: <input id="intervals" type="number" value="4" min="1" max="20" style="width:50px;">
+        <br />
+        <button id="start">開始</button>
+        <button id="resetTimer">タイマーリセット</button>
+        <button id="resetCount">カウントリセット</button>
+      `;
+
+      pomoPhase = "work";
+      pomoCount = 0;
+      let pomoRunning = false;
+      let pomoTimer = 0;
+      let pomoIntervals = 4;
+
+      const workInput = document.getElementById("work");
+      const restInput = document.getElementById("rest");
+      const longInput = document.getElementById("long");
+      const intervalsInput = document.getElementById("intervals");
+
+      function updateDisplay() {
+        display.textContent = formatHMS(pomoTimer);
+      }
+
+      function nextPhase() {
+        if (pomoPhase === "work") {
+          pomoCount++;
+          if (pomoCount % pomoIntervals === 0) {
+            pomoPhase = "long";
+            pomoTimer = longInput.value * 60;
+          } else {
+            pomoPhase = "rest";
+            pomoTimer = restInput.value * 60;
+          }
+        } else {
+          pomoPhase = "work";
+          pomoTimer = workInput.value * 60;
+        }
+        updateDisplay();
+      }
+
+      document.getElementById("start").onclick = () => {
+        if (pomoRunning) return;
+        pomoRunning = true;
+        clearInterval(interval);
+        pomoTimer = workInput.value * 60;
+        updateDisplay();
+        interval = setInterval(() => {
+          if (pomoTimer > 0) {
+            pomoTimer--;
+            updateDisplay();
+          } else {
+            nextPhase();
+          }
+        }, 1000);
+      };
+
+      document.getElementById("resetTimer").onclick = () => {
+        clearInterval(interval);
+        pomoRunning = false;
+        pomoTimer = workInput.value * 60;
+        updateDisplay();
+        document.getElementById("start").style.display = "inline-block";
+      };
+
+      document.getElementById("resetCount").onclick = () => {
+        pomoCount = 0;
+      };
+    }
+
+    function showStopwatch() {
+      clearAll();
+      stopwatchTime = 0;
+      lapsDiv.style.display = "block";
+      lapsDiv.innerHTML = "";
+      controlArea.innerHTML = `
+        <button id="start">開始</button>
+        <button id="pause">一時停止</button>
+        <button id="reset">リセット</button>
+        <button id="lap">ラップ</button>
+      `;
+      let stopwatchRunning = false;
+      let stopwatchPaused = false;
+
+      function updateDisplay() {
+        display.innerHTML = formatStopwatch(stopwatchTime);
+      }
+
+      let stopwatchInterval;
+      document.getElementById("start").onclick = () => {
+        if (stopwatchRunning) return;
+        stopwatchRunning = true;
+        stopwatchPaused = false;
+        stopwatchInterval = setInterval(() => {
+          stopwatchTime++;
+          updateDisplay();
+        }, 10);
+      };
+
+      document.getElementById("pause").onclick = () => {
+        if (!stopwatchRunning) return;
+        if (stopwatchPaused) {
+          stopwatchPaused = false;
+          stopwatchInterval = setInterval(() => {
+            stopwatchTime++;
+            updateDisplay();
+          }, 10);
+        } else {
+          stopwatchPaused = true;
+          clearInterval(stopwatchInterval);
+        }
+      };
+
+      document.getElementById("reset").onclick = () => {
+        clearInterval(stopwatchInterval);
+        stopwatchTime = 0;
+        updateDisplay();
+        lapsDiv.innerHTML = "";
+        stopwatchRunning = false;
+        stopwatchPaused = false;
+      };
+
+      document.getElementById("lap").onclick = () => {
+        if (!stopwatchRunning) return;
+        const lapTime = formatStopwatch(stopwatchTime);
+        lapsDiv.innerHTML += lapTime + "<br>";
+        lapsDiv.scrollTop = lapsDiv.scrollHeight;
+      };
+    }
+
+    // 初期モードは時計
+    let currentMode = "clock";
+    function switchMode(mode) {
+      currentMode = mode;
+      if (mode === "clock") showClock();
+      else if (mode === "timer") showTimer();
+      else if (mode === "pomodoro") showPomodoro();
+      else if (mode === "stopwatch") showStopwatch();
+    }
+
+    document.querySelectorAll(".mode-btn").forEach(btn => {
+      btn.onclick = () => {
+        switchMode(btn.getAttribute("data-mode"));
+        sideMenu.classList.remove("open");
+      };
+    });
+
+    switchMode(currentMode);
+
+    // 文字色初期設定
+    display.style.color = colorSelect.value;
+    dateDisplay.style.color = colorSelect.value;
+    lapsDiv.style.color = colorSelect.value;
+
+    // 音楽プレイヤー機能
+    const musicInput = document.getElementById("musicInput");
+    const albumInput = document.getElementById("albumInput");
+    const albumArt = document.getElementById("albumArt");
+    const playPauseBtn = document.getElementById("playPauseBtn");
+    const playIcon = document.getElementById("playIcon");
+    const pauseIcon = document.getElementById("pauseIcon");
+    const prevBtn = document.getElementById("prevBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const loopBtn = document.getElementById("loopBtn");
+    const shuffleBtn = document.getElementById("shuffleBtn");
+
+    let audio = new Audio();
+    let tracks = [];
+    let currentIndex = 0;
+    let isPlaying = false;
+    let isLoop = false;
+    let isShuffle = false;
+
+    function updateAlbumArt() {
+      if (tracks.length > 0 && tracks[currentIndex].art) {
+        albumArt.src = tracks[currentIndex].art;
+      } else {
+        // ジャケット画像がなければ、アップロードされた画像を使う
+        if (uploadedAlbumArt) {
+          albumArt.src = uploadedAlbumArt;
+        } else {
+          albumArt.src = "";
+        }
+      }
+    }
+
+    function playTrack() {
+      if (tracks.length === 0) return;
+      audio.src = tracks[currentIndex].url;
+      audio.play();
+      isPlaying = true;
+      playIcon.style.display = "none";
+      pauseIcon.style.display = "inline";
+      albumArt.style.animationPlayState = "running";
+    }
+
+    function pauseTrack() {
+      audio.pause();
+      isPlaying = false;
+      playIcon.style.display = "inline";
+      pauseIcon.style.display = "none";
+      albumArt.style.animationPlayState = "paused";
+    }
+
+    playPauseBtn.onclick = () => {
+      if (isPlaying) {
+        pauseTrack();
+      } else {
+        playTrack();
+      }
+    };
+
+    prevBtn.onclick = () => {
+      if (tracks.length === 0) return;
+      if (isShuffle) {
+        currentIndex = Math.floor(Math.random() * tracks.length);
+      } else {
+        currentIndex = (currentIndex - 1 + tracks.length) % tracks.length;
+      }
+      updateAlbumArt();
+      playTrack();
+    };
+
+    nextBtn.onclick = () => {
+      if (tracks.length === 0) return;
+      if (isShuffle) {
+        currentIndex = Math.floor(Math.random() * tracks.length);
+      } else {
+        currentIndex = (currentIndex + 1) % tracks.length;
+      }
+      updateAlbumArt();
+      playTrack();
+    };
+
+    loopBtn.onclick = () => {
+      isLoop = !isLoop;
+      audio.loop = isLoop;
+      loopBtn.style.color = isLoop ? "#1db954" : "gray";
+    };
+
+    shuffleBtn.onclick = () => {
+      isShuffle = !isShuffle;
+      shuffleBtn.style.color = isShuffle ? "#1db954" : "gray";
+    };
+
+    audio.onended = () => {
+      if (isLoop) {
+        audio.play();
+      } else if (isShuffle) {
+        currentIndex = Math.floor(Math.random() * tracks.length);
+        updateAlbumArt();
+        playTrack();
+      } else {
+        currentIndex = (currentIndex + 1) % tracks.length;
+        updateAlbumArt();
+        playTrack();
+      }
+    };
+
+    let uploadedAlbumArt = "";
+
+    musicInput.onchange = e => {
+      const files = Array.from(e.target.files);
+      tracks = files.map(file => {
+        return {
+          url: URL.createObjectURL(file),
+          art: "", // 曲ファイルからのジャケット読み込みは未対応
+          name: file.name
+        };
+      });
+      currentIndex = 0;
+      updateAlbumArt();
+    };
+
+    albumInput.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      uploadedAlbumArt = url;
+      albumArt.src = url;
+    };
+  </script>
+</body>
+</html>
